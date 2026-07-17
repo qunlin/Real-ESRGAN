@@ -1,0 +1,102 @@
+name: Build Windows Executable
+
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: 'Bundle model weight (default: RealESRGAN_x4plus)'
+        required: false
+        default: 'RealESRGAN_x4plus'
+      tile_size:
+        description: 'Default tile size'
+        required: false
+        default: '512'
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install CPU-only PyTorch
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install dependencies
+        run: |
+          pip install basicsr facexlib gfpgan
+          pip install opencv-python Pillow numpy tqdm
+          pip install pyinstaller
+          pip install tkinterdnd2
+
+      - name: Install realesrgan package
+        run: |
+          pip install -e .
+
+      - name: Download model weight
+        shell: pwsh
+        run: |
+          $model = '${{ github.event.inputs.model }}'
+          if (-not $model) { $model = 'RealESRGAN_x4plus' }
+          New-Item -ItemType Directory -Force -Path weights
+          python -c "
+          import os
+          from basicsr.utils.download_util import load_file_from_url
+          model = '$model'
+          models_map = {
+              'RealESRGAN_x4plus': 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth',
+              'RealESRGAN_x2plus': 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth',
+              'RealESRGAN_x4plus_anime_6B': 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth',
+              'RealESRNet_x4plus': 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.1/RealESRNet_x4plus.pth',
+              'realesr-animevideov3': 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-animevideov3.pth',
+              'realesr-general-x4v3': 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth',
+          }
+          url = models_map.get(model)
+          if url:
+              path = load_file_from_url(url, model_dir='weights', progress=True)
+              print(f'Model downloaded: {path}')
+          else:
+              print(f'Unknown model: {model}, skipping')
+          "
+
+      - name: Build executable with PyInstaller
+        run: |
+          pyinstaller esrgan.spec
+
+      - name: List build output
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse dist/Real-ESRGAN/ | Select-Object Name, Length, FullName
+
+      - name: Create ZIP archive
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/Real-ESRGAN/* -DestinationPath Real-ESRGAN-Windows.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Real-ESRGAN-Windows
+          path: Real-ESRGAN-Windows.zip
+          retention-days: 30
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: Real-ESRGAN-Windows.zip
+          draft: true
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
