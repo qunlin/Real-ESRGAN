@@ -51,25 +51,23 @@ jobs:
           $model = '${{ github.event.inputs.model }}'
           if (-not $model) { $model = 'RealESRGAN_x4plus' }
           New-Item -ItemType Directory -Force -Path weights
-          python -c "
-          import os
-          from basicsr.utils.download_util import load_file_from_url
-          model = '$model'
-          models_map = {
-              'RealESRGAN_x4plus': 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth',
-              'RealESRGAN_x2plus': 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth',
-              'RealESRGAN_x4plus_anime_6B': 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth',
-              'RealESRNet_x4plus': 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.1/RealESRNet_x4plus.pth',
-              'realesr-animevideov3': 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-animevideov3.pth',
-              'realesr-general-x4v3': 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth',
+          $models_map = @{
+              'RealESRGAN_x4plus' = 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth'
+              'RealESRGAN_x2plus' = 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth'
+              'RealESRGAN_x4plus_anime_6B' = 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth'
+              'RealESRNet_x4plus' = 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.1/RealESRNet_x4plus.pth'
+              'realesr-animevideov3' = 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-animevideov3.pth'
+              'realesr-general-x4v3' = 'https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth'
           }
-          url = models_map.get(model)
-          if url:
-              path = load_file_from_url(url, model_dir='weights', progress=True)
-              print(f'Model downloaded: {path}')
-          else:
-              print(f'Unknown model: {model}, skipping')
-          "
+          $url = $models_map[$model]
+          if ($url) {
+              $outPath = Join-Path weights "$model.pth"
+              Write-Host "Downloading $url to $outPath ..."
+              Invoke-WebRequest -Uri $url -OutFile $outPath
+              Write-Host "Model downloaded: $outPath"
+          } else {
+              Write-Host "Unknown model: $model, skipping"
+          }
 
       - name: Build executable with PyInstaller
         run: |
