@@ -35,8 +35,9 @@ jobs:
 
       - name: Install dependencies
         run: |
+          pip install "numpy<2"
           pip install basicsr facexlib gfpgan
-          pip install opencv-python Pillow numpy tqdm
+          pip install opencv-python Pillow tqdm
           pip install pyinstaller
           pip install tkinterdnd2
 
